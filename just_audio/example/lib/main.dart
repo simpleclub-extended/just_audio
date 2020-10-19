@@ -1,8 +1,6 @@
 import 'dart:math';
 
-import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 void main() => runApp(MyApp());
@@ -14,58 +12,20 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   AudioPlayer _player;
-  ConcatenatingAudioSource _playlist = ConcatenatingAudioSource(children: [
-    LoopingAudioSource(
-      count: 2,
-      child: ClippingAudioSource(
-        start: Duration(seconds: 60),
-        end: Duration(seconds: 65),
-        child: AudioSource.uri(Uri.parse(
-            "https://s3.amazonaws.com/scifri-episodes/scifri20181123-episode.mp3")),
-        tag: AudioMetadata(
-          album: "Science Friday",
-          title: "A Salute To Head-Scratching Science (5 seconds)",
-          artwork:
-              "https://media.wnyc.org/i/1400/1400/l/80/1/ScienceFriday_WNYCStudios_1400.jpg",
-        ),
-      ),
-    ),
-    AudioSource.uri(
-      Uri.parse(
-          "https://s3.amazonaws.com/scifri-episodes/scifri20181123-episode.mp3"),
-      tag: AudioMetadata(
-        album: "Science Friday",
-        title: "A Salute To Head-Scratching Science",
-        artwork:
-            "https://media.wnyc.org/i/1400/1400/l/80/1/ScienceFriday_WNYCStudios_1400.jpg",
-      ),
-    ),
-    AudioSource.uri(
-      Uri.parse("https://s3.amazonaws.com/scifri-segments/scifri201711241.mp3"),
-      tag: AudioMetadata(
-        album: "Science Friday",
-        title: "From Cat Rheology To Operatic Incompetence",
-        artwork:
-            "https://media.wnyc.org/i/1400/1400/l/80/1/ScienceFriday_WNYCStudios_1400.jpg",
-      ),
-    ),
-  ]);
 
   @override
   void initState() {
     super.initState();
+
     _player = AudioPlayer();
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
-      statusBarColor: Colors.black,
-    ));
     _init();
   }
 
   _init() async {
-    final session = await AudioSession.instance;
-    await session.configure(AudioSessionConfiguration.speech());
     try {
-      await _player.load(_playlist);
+      await _player
+          .setUrl('https://filesamples.com/samples/audio/mp3/sample1.mp3');
+      print('duration after load: ${_player.duration}'); // prints null
     } catch (e) {
       // catch load errors: 404, invalid url ...
       print("An error occured $e");
@@ -88,35 +48,12 @@ class _MyAppState extends State<MyApp> {
             crossAxisAlignment: CrossAxisAlignment.center,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Expanded(
-                child: StreamBuilder<SequenceState>(
-                  stream: _player.sequenceStateStream,
-                  builder: (context, snapshot) {
-                    final state = snapshot.data;
-                    if (state?.sequence?.isEmpty ?? true) return SizedBox();
-                    final metadata = state.currentSource.tag as AudioMetadata;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child:
-                                Center(child: Image.network(metadata.artwork)),
-                          ),
-                        ),
-                        Text(metadata.album ?? '',
-                            style: Theme.of(context).textTheme.headline6),
-                        Text(metadata.title ?? ''),
-                      ],
-                    );
-                  },
-                ),
-              ),
               ControlButtons(_player),
               StreamBuilder<Duration>(
                 stream: _player.durationStream,
                 builder: (context, snapshot) {
+                  print('duration in the stream builder ${_player.duration}');
+
                   final duration = snapshot.data ?? Duration.zero;
                   return StreamBuilder<Duration>(
                     stream: _player.positionStream,
@@ -128,7 +65,7 @@ class _MyAppState extends State<MyApp> {
                       return SeekBar(
                         duration: duration,
                         position: position,
-                        onChangeEnd: (newPosition) {
+                        onChanged: (newPosition) {
                           _player.seek(newPosition);
                         },
                       );
@@ -186,30 +123,6 @@ class _MyAppState extends State<MyApp> {
                     },
                   ),
                 ],
-              ),
-              Container(
-                height: 240.0,
-                child: StreamBuilder<SequenceState>(
-                  stream: _player.sequenceStateStream,
-                  builder: (context, snapshot) {
-                    final state = snapshot.data;
-                    final sequence = state?.sequence ?? [];
-                    return ListView.builder(
-                      itemCount: sequence.length,
-                      itemBuilder: (context, index) => Material(
-                        color: index == state.currentIndex
-                            ? Colors.grey.shade300
-                            : null,
-                        child: ListTile(
-                          title: Text(sequence[index].tag.title),
-                          onTap: () {
-                            _player.seek(Duration.zero, index: index);
-                          },
-                        ),
-                      ),
-                    );
-                  },
-                ),
               ),
             ],
           ),
@@ -301,9 +214,9 @@ class ControlButtons extends StatelessWidget {
               _showSliderDialog(
                 context: context,
                 title: "Adjust speed",
-                divisions: 10,
+                divisions: 15,
                 min: 0.5,
-                max: 1.5,
+                max: 2,
                 stream: player.speedStream,
                 onChanged: player.setSpeed,
               );
