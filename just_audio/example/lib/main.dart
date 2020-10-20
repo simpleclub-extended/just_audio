@@ -58,6 +58,7 @@ class _MyAppState extends State<MyApp> {
                           setState(() {
                             _url = _recorder.value.recording.url;
                           });
+                          _init();
                         },
                         child: Text('Stop recording'),
                       );
