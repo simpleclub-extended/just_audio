@@ -12,6 +12,8 @@ dependencies:
   just_audio:
     path: ../
 
+  microphone: ^0.0.2+2
+
   cupertino_icons: ^0.1.2
 
 dev_dependencies:

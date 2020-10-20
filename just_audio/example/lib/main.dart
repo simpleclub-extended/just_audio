@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:microphone/microphone.dart';
 
 void main() => runApp(MyApp());
 
@@ -12,20 +13,22 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   AudioPlayer _player;
+  MicrophoneRecorder _recorder;
+
+  String _url;
 
   @override
   void initState() {
     super.initState();
 
     _player = AudioPlayer();
-    _init();
+    _recorder = MicrophoneRecorder()..init();
   }
 
   _init() async {
     try {
-      await _player
-          .setUrl('https://filesamples.com/samples/audio/mp3/sample1.mp3');
-      print('duration after load: ${_player.duration}'); // prints null
+      final duration = await _player.setUrl(_url);
+      print('duration after load: $duration'); // prints null
     } catch (e) {
       // catch load errors: 404, invalid url ...
       print("An error occured $e");
@@ -43,90 +46,115 @@ class _MyAppState extends State<MyApp> {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
-        body: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              ControlButtons(_player),
-              StreamBuilder<Duration>(
-                stream: _player.durationStream,
-                builder: (context, snapshot) {
-                  print('duration in the stream builder ${_player.duration}');
+        body: _url == null
+            ? Center(
+                child: ValueListenableBuilder<MicrophoneRecorderValue>(
+                  valueListenable: _recorder,
+                  builder: (context, value, child) {
+                    if (value.started) {
+                      return OutlineButton(
+                        onPressed: () async {
+                          await _recorder.stop();
+                          setState(() {
+                            _url = _recorder.value.recording.url;
+                          });
+                        },
+                        child: Text('Stop recording'),
+                      );
+                    }
 
-                  final duration = snapshot.data ?? Duration.zero;
-                  return StreamBuilder<Duration>(
-                    stream: _player.positionStream,
-                    builder: (context, snapshot) {
-                      var position = snapshot.data ?? Duration.zero;
-                      if (position > duration) {
-                        position = duration;
-                      }
-                      return SeekBar(
-                        duration: duration,
-                        position: position,
-                        onChanged: (newPosition) {
-                          _player.seek(newPosition);
-                        },
-                      );
-                    },
-                  );
-                },
-              ),
-              SizedBox(height: 8.0),
-              Row(
-                children: [
-                  StreamBuilder<LoopMode>(
-                    stream: _player.loopModeStream,
-                    builder: (context, snapshot) {
-                      final loopMode = snapshot.data ?? LoopMode.off;
-                      const icons = [
-                        Icon(Icons.repeat, color: Colors.grey),
-                        Icon(Icons.repeat, color: Colors.orange),
-                        Icon(Icons.repeat_one, color: Colors.orange),
-                      ];
-                      const cycleModes = [
-                        LoopMode.off,
-                        LoopMode.all,
-                        LoopMode.one,
-                      ];
-                      final index = cycleModes.indexOf(loopMode);
-                      return IconButton(
-                        icon: icons[index],
-                        onPressed: () {
-                          _player.setLoopMode(cycleModes[
-                              (cycleModes.indexOf(loopMode) + 1) %
-                                  cycleModes.length]);
-                        },
-                      );
-                    },
-                  ),
-                  Expanded(
-                    child: Text(
-                      "Playlist",
-                      style: Theme.of(context).textTheme.headline6,
-                      textAlign: TextAlign.center,
+                    return OutlineButton(
+                      onPressed: () async {
+                        await _recorder.start();
+                      },
+                      child: Text('Start recording'),
+                    );
+                  },
+                ),
+              )
+            : SafeArea(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    ControlButtons(_player),
+                    StreamBuilder<Duration>(
+                      stream: _player.durationStream,
+                      builder: (context, snapshot) {
+                        final duration = snapshot.data ?? Duration.zero;
+                        return StreamBuilder<Duration>(
+                          stream: _player.positionStream,
+                          builder: (context, snapshot) {
+                            var position = snapshot.data ?? Duration.zero;
+                            if (position > duration) {
+                              position = duration;
+                            }
+                            return SeekBar(
+                              duration: duration,
+                              position: position,
+                              onChanged: (newPosition) {
+                                _player.seek(newPosition);
+                              },
+                            );
+                          },
+                        );
+                      },
                     ),
-                  ),
-                  StreamBuilder<bool>(
-                    stream: _player.shuffleModeEnabledStream,
-                    builder: (context, snapshot) {
-                      final shuffleModeEnabled = snapshot.data ?? false;
-                      return IconButton(
-                        icon: shuffleModeEnabled
-                            ? Icon(Icons.shuffle, color: Colors.orange)
-                            : Icon(Icons.shuffle, color: Colors.grey),
-                        onPressed: () {
-                          _player.setShuffleModeEnabled(!shuffleModeEnabled);
-                        },
-                      );
-                    },
-                  ),
-                ],
+                    SizedBox(height: 8.0),
+                    Row(
+                      children: [
+                        StreamBuilder<LoopMode>(
+                          stream: _player.loopModeStream,
+                          builder: (context, snapshot) {
+                            final loopMode = snapshot.data ?? LoopMode.off;
+                            const icons = [
+                              Icon(Icons.repeat, color: Colors.grey),
+                              Icon(Icons.repeat, color: Colors.orange),
+                              Icon(Icons.repeat_one, color: Colors.orange),
+                            ];
+                            const cycleModes = [
+                              LoopMode.off,
+                              LoopMode.all,
+                              LoopMode.one,
+                            ];
+                            final index = cycleModes.indexOf(loopMode);
+                            return IconButton(
+                              icon: icons[index],
+                              onPressed: () {
+                                _player.setLoopMode(cycleModes[
+                                    (cycleModes.indexOf(loopMode) + 1) %
+                                        cycleModes.length]);
+                              },
+                            );
+                          },
+                        ),
+                        Expanded(
+                          child: Text(
+                            "Playlist",
+                            style: Theme.of(context).textTheme.headline6,
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        StreamBuilder<bool>(
+                          stream: _player.shuffleModeEnabledStream,
+                          builder: (context, snapshot) {
+                            final shuffleModeEnabled = snapshot.data ?? false;
+                            return IconButton(
+                              icon: shuffleModeEnabled
+                                  ? Icon(Icons.shuffle, color: Colors.orange)
+                                  : Icon(Icons.shuffle, color: Colors.grey),
+                              onPressed: () {
+                                _player
+                                    .setShuffleModeEnabled(!shuffleModeEnabled);
+                              },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ],
-          ),
-        ),
       ),
     );
   }
